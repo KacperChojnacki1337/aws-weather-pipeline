@@ -58,3 +58,26 @@ resource "aws_lambda_function" "weather_lambda" {
     }
   }
 }
+
+# 6. Scheduling Rule Definition (Cron)
+resource "aws_cloudwatch_event_rule" "weather_pipeline_hourly" {
+  name                = "weather-pipeline-hourly-rule"
+  description         = "Wyzwalacz Lambdy co godzine"
+  schedule_expression = "rate(1 hour)" # Możesz zmienić na "cron(0 * * * ? *)" dla pełnych godzin
+}
+
+# 7. Connecting a rule to a specific Lambda
+resource "aws_cloudwatch_event_target" "run_lambda_hourly" {
+  rule      = aws_cloudwatch_event_rule.weather_pipeline_hourly.name
+  target_id = "TriggerWeatherLambda"
+  arn       = aws_lambda_function.weather_lambda.arn # Upewnij się, że nazwa zasobu pasuje do Twojej definicji
+}
+
+# 8. Permission for EventBridge to "knock" on Lambda
+resource "aws_lambda_permission" "allow_cloudwatch_to_call_weather_lambda" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.weather_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.weather_pipeline_hourly.arn
+}
