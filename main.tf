@@ -51,6 +51,7 @@ resource "aws_lambda_function" "weather_lambda" {
   role             = aws_iam_role.lambda_exec_role.arn
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
+  timeout          = 30
 
   environment {
     variables = {
@@ -64,6 +65,7 @@ resource "aws_cloudwatch_event_rule" "weather_pipeline_hourly" {
   name                = "weather-pipeline-hourly-rule"
   description         = "Wyzwalacz Lambdy co godzine"
   schedule_expression = "rate(1 hour)" # Możesz zmienić na "cron(0 * * * ? *)" dla pełnych godzin
+  is_enabled          = true
 }
 
 # 7. Connecting a rule to a specific Lambda
