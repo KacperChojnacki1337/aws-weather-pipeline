@@ -43,6 +43,12 @@ resource "aws_iam_role_policy_attachment" "s3_access" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
+# 4a. Allow Lambda to write logs to CloudWatch
+resource "aws_iam_role_policy_attachment" "lambda_logs" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
 # 5. Lambda Function
 resource "aws_lambda_function" "weather_lambda" {
   filename         = data.archive_file.lambda_zip.output_path
