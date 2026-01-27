@@ -89,3 +89,53 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_weather_lambda" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.weather_pipeline_hourly.arn
 }
+
+# 9. Layer with Pandas and PyArrow (for eu-north-1 region, Python 3.12)
+# This ARN is available for the Stockholm region
+variable "pandas_layer_arn" {
+  default = "arn:aws:lambda:eu-north-1:336392948345:layer:AWSSDKPandas-Python312:13"
+}
+
+
+# 10. New Lambda function for Silver layer
+resource "aws_lambda_function" "weather_transformer" {
+  filename         = data.archive_file.lambda_zip.output_path 
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  function_name    = "weather-transformer-silver"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "transformer.lambda_handler" 
+  runtime          = "python3.12"
+  timeout          = 60 # 
+  memory_size      = 256 # 
+
+  layers = [var.pandas_layer_arn]
+
+  environment {
+    variables = {
+      MY_DATA_BUCKET = aws_s3_bucket.weather_bucket.id
+    }
+  }
+}
+# 11. Permission for S3 to run Lambda Transformer
+resource "aws_lambda_permission" "allow_s3_to_call_transformer" {
+  statement_id  = "AllowExecutionFromS3Bucket"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.weather_transformer.function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.weather_bucket.arn
+}
+
+# S3 Notification Configuration
+resource "aws_s3_bucket_notification" "bucket_notification" {
+  bucket = aws_s3_bucket.weather_bucket.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.weather_transformer.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "raw/" 
+  }
+
+  depends_on = [aws_lambda_permission.allow_s3_to_call_transformer]
+}
+
+
