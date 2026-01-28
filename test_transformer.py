@@ -25,3 +25,15 @@ def test_output_path_generation():
     assert output_key.endswith(".parquet")
     assert "raw/" not in output_key
     print(f"✅ Path generated correctly: {output_key}")
+
+def test_flattening_logic():
+    import pandas as pd
+    nested_data = {
+        "city": "Lodz",
+        "current_weather": {"temp": 15, "wind": 5}
+    }
+    df = pd.json_normalize(nested_data, sep='_')
+    
+    assert 'current_weather_temp' in df.columns
+    assert df['current_weather_temp'][0] == 15
+    print("\n✅ Flattening works: 'current_weather_temp' created.")
