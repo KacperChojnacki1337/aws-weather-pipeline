@@ -3,6 +3,7 @@ import boto3
 import pandas as pd
 import awswrangler as wr
 import os
+import urllib.parse
 
 def lambda_handler(event, context):
     """
@@ -13,7 +14,9 @@ def lambda_handler(event, context):
     
     # 1. Get the bucket name and file key from the S3 event trigger
     bucket = event['Records'][0]['s3']['bucket']['name']
-    key = event['Records'][0]['s3']['object']['key']
+    raw_key = event['Records'][0]['s3']['object']['key']
+    key = urllib.parse.unquote_plus(raw_key)
+
     
     print(f"Processing new file: s3://{bucket}/{key}")
 
