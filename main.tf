@@ -139,3 +139,32 @@ resource "aws_s3_bucket_notification" "bucket_notification" {
 }
 
 
+# 12. IAM USER
+resource "aws_iam_user" "kch_dev" {
+  name = "KCH-DEV"
+  tags = {
+    Project = "WeatherPortfolio"
+  }
+}
+
+# 2. Admin access
+resource "aws_iam_user_policy_attachment" "kch_dev_admin" {
+  user       = aws_iam_user.kch_dev.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# 3. Keys
+resource "aws_iam_access_key" "kch_dev_keys" {
+  user = aws_iam_user.kch_dev.name
+}
+
+# 4. Output to copy
+output "kch_dev_access_key_id" {
+  value = aws_iam_access_key.kch_dev_keys.id
+}
+
+output "kch_dev_secret_access_key" {
+  value     = aws_iam_access_key.kch_dev_keys.secret
+  sensitive = true
+}
+
