@@ -23,7 +23,7 @@ def lambda_handler(event, context):
         # (Better control over flattening than direct wr.s3.read_json)
         s3 = boto3.client('s3')
         response = s3.get_object(Bucket=bucket, Key=key)
-        content = response['body'].read().decode('utf-8')
+        content = response['Body'].read().decode('utf-8')
         json_data = json.loads(content)
 
         # 3. Flattening: Nested dicts become separate columns
