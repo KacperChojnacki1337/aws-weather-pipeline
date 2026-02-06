@@ -190,11 +190,11 @@ resource "aws_glue_crawler" "weather_crawler" {
     path = "s3://${aws_s3_bucket.weather_bucket.bucket}/transformed/"
   }
 
+  # Fixed configuration: simplified version to avoid schema conflicts
   configuration = jsonencode({
     Version = 1.0
     CrawlerOutput = {
       Partitions = { AddPartitions = true }
-      Tables     = { AddColumns = true }
     }
   })
 }
