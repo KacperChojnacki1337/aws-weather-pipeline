@@ -3,13 +3,14 @@ import boto3
 import pandas as pd
 import awswrangler as wr
 import urllib.parse
+import os
 
 def lambda_handler(event, context):
     """
     Silver Layer Transformer:
     1. Decodes S3 keys.
-    2. Flattens nested JSON (crucial for Parquet/Athena).
-    3. Enforces data types to prevent ArrowTypeError.
+    2. Flattens nested JSON.
+    3. Enforces STRICT data types to prevent HIVE_BAD_DATA (Double vs Long).
     """
     # 1. Extract and Decode the S3 Key
     bucket = event['Records'][0]['s3']['bucket']['name']
@@ -19,44 +20,63 @@ def lambda_handler(event, context):
     print(f"Starting transformation for: s3://{bucket}/{key}")
 
     try:
-        # 2. Load raw JSON content using boto3 
-        # (Better control over flattening than direct wr.s3.read_json)
+        # 2. Load raw JSON content using boto3
         s3 = boto3.client('s3')
         response = s3.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read().decode('utf-8')
         json_data = json.loads(content)
 
         # 3. Flattening: Nested dicts become separate columns
-        # current_weather -> current_weather_temperature, etc.
         df = pd.json_normalize(json_data, sep='_')
 
-        # 4. Data Cleaning & Metadata
+        # 4. ENFORCED SCHEMA (The Fix for Athena/Glue)
+        # Defining exact types as seen in your Glue Catalog
+        target_schema = {
+            'latitude': 'float64',
+            'longitude': 'float64',
+            'generationtime_ms': 'float64',
+            'utc_offset_seconds': 'int64',
+            'timezone': 'string',
+            'timezone_abbreviation': 'string',
+            'elevation': 'float64',
+            'current_weather_temperature': 'float64', # CRITICAL FIX
+            'current_weather_windspeed': 'float64',
+            'current_weather_winddirection': 'float64',
+            'current_weather_is_day': 'int64',
+            'current_weather_weathercode': 'int64',
+            'current_weather_interval': 'int64',
+            'current_weather_time': 'string'
+        }
+
+        # Apply schema and handle missing columns gracefully
+        for col, dtype in target_schema.items():
+            if col in df.columns:
+                if dtype == 'float64':
+                    df[col] = pd.to_numeric(df[col], errors='coerce').astype('float64')
+                else:
+                    df[col] = df[col].astype(dtype)
+
+        # 5. Add Metadata
         df['processing_timestamp'] = pd.Timestamp.now()
         df['source_file'] = key
 
-        # 5. Type Enforcement (The "Parquet Guard")
-        # Converts objects to strings and optimizes types to avoid ArrowTypeError
-        df = df.convert_dtypes()
-        for col in df.columns:
-            if df[col].dtype == 'object':
-                df[col] = df[col].astype(str)
-
-        # 6. Define Output Path
+        # 6. Define Output Path (Partition-aware replacement)
         output_key = key.replace('raw/', 'transformed/').replace('.json', '.parquet')
         output_path = f"s3://{bucket}/{output_key}"
 
-        # 7. Write to Parquet
+        # 7. Write to Parquet 
+        # We set index=False to keep the schema clean in Athena
         wr.s3.to_parquet(
             df=df,
             path=output_path,
-            dataset=False 
+            dataset=False
         )
 
-        print(f"Success! Flat Parquet saved to: {output_path}")
+        print(f"Success! Schema-enforced Parquet saved to: {output_path}")
         
         return {
             'statusCode': 200,
-            'body': json.dumps("File transformed and flattened successfully.")
+            'body': json.dumps("File transformed with strict schema successfully.")
         }
 
     except Exception as e:
