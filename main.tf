@@ -97,7 +97,7 @@ resource "aws_cloudwatch_event_rule" "weather_pipeline_hourly" {
   name                = "weather-pipeline-hourly-rule"
   description         = "Triggers Lambda hourly"
   schedule_expression = "rate(1 hour)"
-  is_enabled          = true
+  state         = "ENABLED"
 }
 
 resource "aws_cloudwatch_event_target" "run_lambda_hourly" {
@@ -189,14 +189,6 @@ resource "aws_glue_crawler" "weather_crawler" {
   s3_target {
     path = "s3://${aws_s3_bucket.weather_bucket.bucket}/transformed/"
   }
-
-  # Fixed configuration: simplified version to avoid schema conflicts
-  configuration = jsonencode({
-    Version = 1.0
-    CrawlerOutput = {
-      Partitions = { AddPartitions = true }
-    }
-  })
 }
 
 # --- SECURITY: IAM USER FOR DEVELOPER ---
