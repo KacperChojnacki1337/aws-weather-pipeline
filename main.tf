@@ -217,7 +217,7 @@ resource "aws_sns_topic" "lambda_error_alerts" {
 resource "aws_sns_topic_subscription" "email_alert" {
   topic_arn = aws_sns_topic.lambda_error_alerts.arn
   protocol  = "email"
-  endpoint  = "kmchojnacki17@gmail.com" # 
+  endpoint  = "kmchojnacki17@gmail.com"} # 
 
 # CloudWatch Alarm to monitor Silver Lambda execution failures
 resource "aws_cloudwatch_metric_alarm" "silver_lambda_errors" {
