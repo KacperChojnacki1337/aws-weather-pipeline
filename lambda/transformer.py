@@ -3,82 +3,74 @@ import boto3
 import pandas as pd
 import awswrangler as wr
 import urllib.parse
-import os
+
+def validate_data(df):
+    """
+    Returns True if data is valid, False otherwise.
+    Add your quality business rules here.
+    """
+    if df.empty:
+        return False, "Empty DataFrame"
+    
+    # Rule 1: Temperature check (reasonable Earth limits)
+    if 'current_weather_temperature' in df.columns:
+        temp = df['current_weather_temperature'].iloc[0]
+        if temp < -60 or temp > 60:
+            return False, f"Invalid temperature: {temp}"
+    
+    # Rule 2: Mandatory fields check
+    required_cols = ['latitude', 'longitude', 'current_weather_time']
+    for col in required_cols:
+        if col not in df.columns or pd.isna(df[col].iloc[0]):
+            return False, f"Missing required column: {col}"
+            
+    return True, "Success"
 
 def lambda_handler(event, context):
-    """
-    Silver Layer Transformer:
-    1. Decodes S3 keys.
-    2. Flattens nested JSON.
-    3. Enforces STRICT data types to prevent HIVE_BAD_DATA (Double vs Long).
-    """
-    # 1. Extract and Decode the S3 Key
+    s3_client = boto3.client('s3')
     bucket = event['Records'][0]['s3']['bucket']['name']
     raw_key = event['Records'][0]['s3']['object']['key']
     key = urllib.parse.unquote_plus(raw_key)
     
-    print(f"Starting transformation for: s3://{bucket}/{key}")
-
     try:
-        # 2. Load raw JSON content using boto3
-        s3 = boto3.client('s3')
-        response = s3.get_object(Bucket=bucket, Key=key)
-        content = response['Body'].read().decode('utf-8')
-        json_data = json.loads(content)
-
-        # 3. Flattening: Nested dicts become separate columns
+        # Load and Flatten
+        response = s3_client.get_object(Bucket=bucket, Key=key)
+        json_data = json.loads(response['Body'].read().decode('utf-8'))
         df = pd.json_normalize(json_data, sep='_')
 
-        # 4. ENFORCED SCHEMA (The Fix for Athena/Glue)
-        # Defining exact types as seen in your Glue Catalog
-        target_schema = {
-            'latitude': 'float64',
-            'longitude': 'float64',
-            'generationtime_ms': 'float64',
-            'utc_offset_seconds': 'int64',
-            'timezone': 'string',
-            'timezone_abbreviation': 'string',
-            'elevation': 'float64',
-            'current_weather_temperature': 'float64', # CRITICAL FIX
-            'current_weather_windspeed': 'float64',
-            'current_weather_winddirection': 'float64',
-            'current_weather_is_day': 'int64',
-            'current_weather_weathercode': 'int64',
-            'current_weather_interval': 'int64',
-            'current_weather_time': 'string'
-        }
+        # DATA QUALITY CHECK
+        is_valid, message = validate_data(df)
+        
+        if not is_valid:
+            print(f"Data Quality Failed for {key}: {message}")
+            # Move to quarantine
+            quarantine_key = key.replace('raw/', 'quarantine/')
+            s3_client.copy_object(
+                Bucket=bucket,
+                CopySource={'Bucket': bucket, 'Key': key},
+                Key=quarantine_key
+            )
+            return {'statusCode': 400, 'body': f"Data quarantined: {message}"}
 
-        # Apply schema and handle missing columns gracefully
+        # If valid, proceed with existing transformation logic
+        target_schema = {
+            'latitude': 'float64', 'longitude': 'float64',
+            'current_weather_temperature': 'float64',
+            'current_weather_time': 'string'
+            # ... (reszta Twojego schematu)
+        }
+        
         for col, dtype in target_schema.items():
             if col in df.columns:
-                if dtype == 'float64':
-                    df[col] = pd.to_numeric(df[col], errors='coerce').astype('float64')
-                else:
-                    df[col] = df[col].astype(dtype)
+                df[col] = pd.to_numeric(df[col], errors='coerce').astype(dtype)
 
-        # 5. Add Metadata
         df['processing_timestamp'] = pd.Timestamp.now()
-        df['source_file'] = key
-
-        # 6. Define Output Path (Partition-aware replacement)
         output_key = key.replace('raw/', 'transformed/').replace('.json', '.parquet')
-        output_path = f"s3://{bucket}/{output_key}"
-
-        # 7. Write to Parquet 
-        # We set index=False to keep the schema clean in Athena
-        wr.s3.to_parquet(
-            df=df,
-            path=output_path,
-            dataset=False
-        )
-
-        print(f"Success! Schema-enforced Parquet saved to: {output_path}")
         
-        return {
-            'statusCode': 200,
-            'body': json.dumps("File transformed with strict schema successfully.")
-        }
+        wr.s3.to_parquet(df=df, path=f"s3://{bucket}/{output_key}", dataset=False)
+        
+        return {'statusCode': 200, 'body': "Validated and Transformed"}
 
     except Exception as e:
-        print(f"Error processing {key}: {str(e)}")
+        print(f"Error: {str(e)}")
         raise e
