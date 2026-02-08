@@ -227,7 +227,7 @@ resource "aws_cloudwatch_metric_alarm" "silver_lambda_errors" {
   evaluation_periods  = "1"
   metric_name         = "Errors"
   namespace           = "AWS/Lambda"
-  period              = "300" # 5-minute window
+  period              = "60" # 5-minute window
   statistic           = "Sum"
   threshold           = "0"
   alarm_description   = "Critical: Silver Lambda transformation failed."
