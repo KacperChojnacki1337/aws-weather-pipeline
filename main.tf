@@ -56,7 +56,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "weather_bucket_lifecycle" {
 # Package the local lambda directory into a deployment ZIP
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/lambda"
+  source_dir  = "${path.module}/lambda_func"
   output_path = "${path.module}/lambda.zip"
 }
 

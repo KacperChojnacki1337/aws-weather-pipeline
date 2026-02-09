@@ -1,6 +1,7 @@
 # AWS Weather Data Pipeline
 
-A production-ready Data Lakehouse project built using the Medallion Architecture. This pipeline automates the ingestion, transformation, and analysis of weather data for multiple cities in Poland using Infrastructure as Code (IaC).
+A production-ready Data Lakehouse project built using the Medallion Architecture. This pipeline automates the ingestion, transformation and analysis of weather data for 18 capital cities in Poland using Infrastructure as Code (IaC).
+
 
 ## 🏗 Architecture Overview
 The system is fully automated and follows a three-layer data pattern:
@@ -23,38 +24,40 @@ Silver (Transformed Layer):
 
 Gold (Analytics Layer):
 
-- Consumption: Amazon Athena Views and CTAS tables.
+- Discovery: AWS Glue Crawler automatically updates the Data Catalog.
 
-- Insight: Aggregated daily statistics (min/max/avg temperatures) ready for BI tools like QuickSight.
+- Consumption: Amazon Athena for SQL queries and daily statistics
 
 
 
 ## 🛠 Tech Stack
-- **Cloud:** AWS (Lambda, S3, EventBridge, IAM, Glue, CloudWatch)
+- **Cloud:** AWS (Lambda, S3, EventBridge, IAM, Glue, CloudWatch, SNS)
 - **IaC:** Terraform
 - **Data Engineering:** Python (Pandas, AWS SDK/Boto3, AWS Wrangler).
 - **CI/CD:** GitHub Actions
+- **Testing:** Pytest (Unit testing for transformation logic)
 - **Storage Format:** Apache Parquet (Columnar storage).
 
 ## 📂 Project Structure
 .
-├── lambda/                         # Lambda function source code
-│   ├── bronze_ingest.py            # API data ingestion (Bronze Layer)
-│   └── transformer.py              # Parquet transformation & type validation (Silver Layer)
-├── terraform/                      # Infrastructure as Code (IaC)
-│   ├── main.tf                     # Main resources (S3, Lambda, Glue, EventBridge)
-│   ├── variables.tf                # Variable definitions
-│   ├── outputs.tf                  # Infrastructure outputs (Bucket names, Role ARNs)
-│   └── provider.tf                 # AWS Provider configuration
-├── .github/workflows/              # CI/CD Automation
-│   └── terraform.yml               # Infrastructure deployment pipeline via GitHub Actions
-├── .gitignore                      # Ignored files (e.g., lambda.zip, terraform state files)
-└── README.md                       # Technical project documentation
+├── lambda_func/             # AWS Lambda source code
+│   ├── __init__.py
+│   ├── bronze_ingest.py     # API ingestion logic (Bronze)
+│   └── transformer.py       # Data flattening & Parquet conversion (Silver)
+├── tests/                   # Unit testing suite
+│   ├── __init__.py
+│   └── test_transformer.py  # Tests for transformation logic
+├── main.tf                  # Primary Terraform configuration (S3, Lambda, Glue)
+├── variables.tf             # Infrastructure variables
+├── outputs.tf               # Resource ARNs and endpoint outputs
+├── .gitignore               # Excludes terraform.tfstate and zip files
+└── README.md                # Technical documentation
 
 ##🚀 Key Engineering Solutions
-- **Schema Enforcement:** Solved a critical INT64 vs Double type mismatch in Athena by explicitly casting API responses to float64 within the Silver Lambda.
-- **Cost Optimization:** Utilized Parquet columnar format and Hive-style partitioning to minimize data scanning costs in Amazon Athena.
+- **Schema Enforcement:** Resolved INT64 vs Double type mismatches by explicitly casting metrics to float64 within the Silver Lambda.
+- **Cost Optimization:** Implemented S3 Lifecycle Policies to transition raw data to Glacier Instant Retrieval after 30 days and delete after 90 days.
 - **Event-Driven Flow:** Fully decoupled layers using S3 Event Notifications to trigger downstream processing automatically.
+- **Observability:** Configured CloudWatch Alarms integrated with Amazon SNS to send real-time email notifications upon Lambda execution failures.
 
 
 ## 🚀 Features (Bronze Layer)
