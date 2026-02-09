@@ -22,22 +22,31 @@ resource "aws_s3_bucket" "weather_bucket" {
 resource "aws_s3_bucket_lifecycle_configuration" "weather_bucket_lifecycle" {
   bucket = aws_s3_bucket.weather_bucket.id
 
+# 1: raw archivizing
   rule {
-    id     = "archive_old_raw_data"
+    id     = "cleanup_raw_data"
     status = "Enabled"
-
     filter {
       prefix = "raw/"
     }
+    expiration {
+      days = 30 # 
+    }
+  }
 
-    # Transition to cheaper storage after 30 days, expire after 90
+  # 2. silver archivizing
+  rule {
+    id     = "archive_transformed_data"
+    status = "Enabled"
+    filter {
+      prefix = "transformed/" # 
+    }
     transition {
       days          = 30
-      storage_class = "INTELLIGENT_TIERING"
+      storage_class = "GLACIER_IR" # 
     }
-
     expiration {
-      days = 90
+      days = 365 # 
     }
   }
 }
