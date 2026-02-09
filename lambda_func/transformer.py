@@ -4,6 +4,14 @@ import pandas as pd
 import awswrangler as wr
 import urllib.parse
 
+def flatten_weather_data(data):
+    return {
+        "city": data["name"],
+        "temp_celsius": data["main"]["temp"] - 273.15,
+        "humidity": data["main"]["humidity"],
+        "timestamp": data["dt"]
+    }
+
 def validate_data(df):
     """
     Returns True if data is valid, False otherwise.
